@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Envelope Template</title>
+  <style>
+    /* =====================================================================
+       1. COLOR PALETTE
+       Every color in the project lives in this block. Change them here and
+       nothing else needs touching.
+       ===================================================================== */
+    :root {
+      /* --- page --- */
+      --bg:            #d09696;   /* page background */
+      --hint-text:     #fbf5e9;   /* small "tap the envelope below to close" text */
+
+      /* --- envelope --- */
+      --env-back:      #abb3a2;   /* inside / back of the envelope */
+      --env-front:     #bbc2b3;   /* front pocket */
+      --env-flap:      #889486;   /* top flap */
+
+      /* --- note paper --- */
+      --paper:         #fbf5e9;   /* the note itself (also the back of the folds) */
+      --paper-inner:   #c78f8f;   /* background revealed under each cover */
+      --ink:           #fbf5e9;   /* body text inside the sections */
+      --accent:        #d09696;   /* title + cake caption */
+
+      /* --- section covers AND their Close buttons (one color per section) --- */
+      --sec-top:       #9c5a5a;   /* section above the cake */
+      --sec-left:      #9c5a5a;   /* section left of the cake */
+      --sec-right:     #9c5a5a;   /* section right of the cake */
+      --on-section:    #ffffff;   /* text on the covers and Close buttons */
+
+      /* --- cake --- */
+      --cake-top:      #f7a8b8;   /* top tier */
+      --cake-bottom:   #c98a5e;   /* bottom tier */
+      --cake-icing:    #e6a1a1;   /* white icing line + candle stripes */
+      --cake-plate:    #cccccc;
+      --candle-stripe: #9c5a5a;   /* candle stripe color */
+      --flame-inner:   #fff3a0;
+      --flame-outer:   #ff9d2e;
+
+      /* --- shadows (neutral; fine to leave) --- */
+      --shadow:        rgba(0, 0, 0, .3);
+
+      /* --- OPTIONAL content styles (only used if you paste in the snippets at the bottom) --- */
+      --photo-bg:      #e6d9c8;   /* photo placeholder color until the image loads */
+      --photo-border:  #ffffff;
+      --vinyl-disc:    #111111;
+      --vinyl-groove:  #262626;
+      --vinyl-label:   #e07a8a;
+      --vinyl-hole:    #fff6e8;
+      --button-bg:     #e07a8a;   /* Play button */
+      --button-text:   #ffffff;
+    }
+
+    /* =====================================================================
+       2. SIZES
+       ===================================================================== */
+    :root {
+      --cw: 220px;                        /* width of each section of the note */
+      --th: 170px;                        /* height of the top section */
+      --ch: 230px;                        /* height of the cake + left/right sections */
+      --bh: calc(var(--th) + var(--ch));  /* full height of the opened note (don't edit) */
+      --fit: 1;                           /* set by JS so the note fits small screens (don't edit) */
+      --half: 50vh;                       /* half the screen height (don't edit) */
+    }
+    @supports (height: 1dvh) { :root { --half: 50dvh; } }
+
+    /* =====================================================================
+       3. PAGE + ENVELOPE
+       ===================================================================== */
+    * { box-sizing: border-box; margin: 0; }
+
+    html { overflow: hidden; background: var(--bg); }
+
+    body {
+      position: fixed; inset: 0;          /* locked to the screen so the wide note can't stretch the page */
+      overflow: hidden;
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      font-family: Georgia, serif;
+    }
+
+    .scene { position: relative; }
+
+    .envelope {
+      --lift: 0px;                        /* vertical position of the note */
+      --drop: 0px;                        /* how far the envelope has fallen */
+      --scale: .8;                        /* note starts small, inside the envelope */
+      position: relative;
+      width: 320px;
+      height: 210px;
+      cursor: pointer;
+      transform: translateY(var(--drop));
+      transition: transform 1s ease-in-out;
+    }
+
+    .back  { position: absolute; inset: 0; background: var(--env-back); z-index: 1; border-radius: 4px; }
+
+    .front {
+      position: absolute; inset: 0; z-index: 3;
+      background: var(--env-front);
+      clip-path: polygon(0 0, 50% 55%, 100% 0, 100% 100%, 0 100%);
+      border-radius: 4px;
+    }
+
+    .flap {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 55%;
+      background: var(--env-flap);
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+      transform-origin: top;
+      z-index: 4;
+      transition: transform .6s ease, z-index 0s .3s;
+    }
+
+    .hint {
+      position: fixed; bottom: 68px; left: 0; right: 0;
+      text-align: center; color: var(--hint-text); font-size: 13px;
+      opacity: 0; transition: opacity .5s; pointer-events: none;
+    }
+    .hint.show { opacity: 1; }
+
+    /* =====================================================================
+       4. THE NOTE (plus-shaped: cake in the middle, 3 sections folded around it)
+       ===================================================================== */
+    .note {
+      position: absolute;
+      left: 50%; margin-left: calc(var(--cw) * -1.5);
+      bottom: 10px;
+      width: calc(var(--cw) * 3);
+      height: var(--bh);
+      display: grid;
+      grid-template-columns: repeat(3, var(--cw));
+      grid-template-rows: var(--th) var(--ch);
+      z-index: 2;
+      transform-origin: bottom center;
+      transform: translateY(calc(var(--lift) - var(--drop))) scale(calc(var(--scale) * var(--fit)));
+      transition: transform 1s ease-in-out;
+      pointer-events: none;
+    }
+
+    /* ---------- Animation stages (script.js adds these classes to .envelope) ---------- */
+    /* open: flap opens, folded note slides out */
+    .envelope.open .flap { transform: rotateX(180deg); z-index: 0; }
+    .envelope.open { --lift: -110px; }
+    .envelope.open .note { transition-delay: .5s; }
+
+    /* reveal: envelope drops so only a sliver shows, folded note moves to the middle */
+    .envelope.reveal { --drop: calc(var(--half) + 45px); --scale: 1; --lift: calc(var(--ch) * var(--fit) / 2 - 95px); }
+    .envelope.reveal .note { transition-delay: 0s; }
+    .envelope.reveal .flap { transform: none; z-index: 4; }
+
+    /* unfolded: the three sections fold out; the note re-centers as a whole */
+    .envelope.unfolded { --lift: calc(var(--bh) * var(--fit) / 2 - 95px); }
+
+    /* closing: move in sync with the envelope */
+    .envelope.closing .note { transition-delay: 0s; }
+
+    /* ---------- Centre card (cake) ---------- */
+    .center {
+      grid-column: 2; grid-row: 2; z-index: 1;
+      background: var(--paper);
+      box-shadow: 0 2px 10px var(--shadow);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 10px;
+    }
+    .center h2 { font-size: 20px; color: var(--accent); margin-bottom: 12px; text-align: center; }
+
+    /* ---------- Fold-out sections ---------- */
+    .fold {
+      --d: 0s;                                          /* stagger delay */
+      position: relative;
+      background: var(--paper);                         /* seen on the back while folded */
+      box-shadow: 0 2px 10px var(--shadow);
+      transition: transform .8s cubic-bezier(.45, .05, .25, 1) var(--d);
+    }
+    /* Folded = flipped 180deg over the centre card, hinged on the edge touching the cake.
+       --c   = this section's color (set from the palette above)
+       --out = the direction its cover slides away */
+    .fold.top   { grid-column: 2; grid-row: 1; z-index: 4; --d: 0s;   --c: var(--sec-top);   --out: translateY(-101%);
+                  transform-origin: bottom center; transform: perspective(900px) rotateX(-180deg); }
+    .fold.left  { grid-column: 1; grid-row: 2; z-index: 3; --d: .25s; --c: var(--sec-left);  --out: translateX(-101%);
+                  transform-origin: right center;  transform: perspective(900px) rotateY(180deg); }
+    .fold.right { grid-column: 3; grid-row: 2; z-index: 2; --d: .5s;  --c: var(--sec-right); --out: translateX(101%);
+                  transform-origin: left center;   transform: perspective(900px) rotateY(-180deg); }
+
+    .envelope.unfolded .fold.top   { transform: perspective(900px) rotateX(0deg); }
+    .envelope.unfolded .fold.left  { transform: perspective(900px) rotateY(0deg); }
+    .envelope.unfolded .fold.right { transform: perspective(900px) rotateY(0deg); }
+
+    /* fold back in the opposite order */
+    .envelope.closing .fold.top   { --d: .5s; }
+    .envelope.closing .fold.right { --d: 0s; }
+
+    .envelope.unfolded .fold,
+    .envelope.unfolded .center { pointer-events: auto; }
+
+    /* section content fades in once its fold has swung open */
+    .inner { position: absolute; inset: 0; opacity: 0; transition: opacity .25s; }
+    .envelope.unfolded .inner { opacity: 1; transition: opacity .4s calc(var(--d) + .4s); }
+
+    /* ---------- Section = content (.under) + solid cover (.cover) + Close button ---------- */
+    .win   { position: absolute; inset: 0; overflow: hidden; background: var(--paper-inner); }
+
+    .under {                                            /* YOUR CONTENT goes in here */
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px;
+      padding: 12px 12px 44px;                          /* extra bottom room for the Close button */
+      color: var(--ink);
+    }
+
+    .cover {                                            /* solid color cover, slides away when clicked */
+      position: absolute; inset: 0; z-index: 2; cursor: pointer;
+      display: grid; place-items: center; text-align: center; padding: 10px;
+      background: var(--c);
+      color: var(--on-section);
+      font: 700 16px Georgia, serif;
+      transition: transform .7s cubic-bezier(.6, .05, .3, 1), filter .2s;
+    }
+    .cover:hover { filter: brightness(1.07); }
+    .win.open .cover { transform: var(--out); pointer-events: none; }
+
+    .close {                                            /* bottom-right corner of every section */
+      position: absolute; right: 8px; bottom: 8px; z-index: 3;
+      padding: 5px 12px; border: 0; border-radius: 14px;
+      background: var(--c);
+      color: var(--on-section);
+      font: 600 12px Georgia, serif; cursor: pointer;
+      opacity: 0; pointer-events: none; transition: opacity .3s;
+    }
+    .win.open .close { opacity: 1; pointer-events: auto; transition-delay: .5s; }
+
+    .placeholder { font-style: italic; font-size: 13px; opacity: .45; text-align: center; }   /* delete with the placeholder text */
+
+    /* ---------- Cake (pops up after the note unfolds) ---------- */
+    .cake {
+      display: flex; flex-direction: column; align-items: center;
+      margin-top: 10px;
+      transform: translateY(40px) scale(0); transform-origin: bottom center;
+      transition: transform .3s;
+    }
+    .envelope.unfolded .cake {
+      transform: none;
+      transition: transform .6s cubic-bezier(.34, 1.56, .64, 1) 1s;   /* bouncy pop-up */
+    }
+    .candles { display: flex; gap: 16px; }
+    .candle {
+      position: relative; width: 6px; height: 22px; border-radius: 2px;
+      background: repeating-linear-gradient(45deg, var(--cake-icing) 0 4px, var(--candle-stripe) 4px 8px);
+    }
+    .flame {
+      position: absolute; left: 50%; top: -12px; width: 8px; height: 12px; margin-left: -4px;
+      background: radial-gradient(var(--flame-inner), var(--flame-outer));
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      animation: flicker .3s infinite alternate;
+    }
+    .candle:nth-child(2) .flame { animation-delay: .1s; }
+    .candle:nth-child(3) .flame { animation-delay: .2s; }
+    @keyframes flicker { to { transform: scale(.85) rotate(4deg); } }
+
+    .tier-top    { width: 96px;  height: 32px; background: var(--cake-top);    border-radius: 10px 10px 0 0; box-shadow: inset 0 8px var(--cake-icing); }
+    .tier-bottom { width: 150px; height: 44px; background: var(--cake-bottom); border-radius: 10px 10px 0 0; box-shadow: inset 0 9px var(--cake-icing); }
+    .plate       { width: 176px; height: 7px;  background: var(--cake-plate);  border-radius: 4px; }
+    .cake-text   { margin-top: 8px; font-size: 14px; color: var(--accent); }
+
+    /* =====================================================================
+       5. OPTIONAL CONTENT STYLES (used by the snippets at the bottom of <body>;
+          delete whatever you don't use)
+       ===================================================================== */
+    .poem { font-style: italic; line-height: 1.65; font-size: 12.5px; text-align: center; }
+
+    .under.collage {
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      align-items: stretch; justify-items: stretch;
+      gap: 10px; padding: 16px 16px 44px;
+    }
+    .photo {
+      background-size: cover; background-position: center;
+      background-color: var(--photo-bg);
+      border: 4px solid var(--photo-border); box-shadow: 0 2px 5px var(--shadow);
+    }
+    .photo:nth-child(1) { transform: rotate(-3deg); }
+    .photo:nth-child(2) { transform: rotate(3deg); }
+    .photo:nth-child(3) { transform: rotate(2deg); }
+    .photo:nth-child(4) { transform: rotate(-2deg); }
+
+    .vinyl {
+      position: relative;
+      width: 112px; height: 112px; border-radius: 50%;
+      background:
+        conic-gradient(rgba(255,255,255,.18), transparent 20%, rgba(255,255,255,.18) 50%, transparent 70%, rgba(255,255,255,.18)),   /* shine: fine to leave */
+        repeating-radial-gradient(circle, var(--vinyl-disc) 0 2px, var(--vinyl-groove) 3px 4px);
+      box-shadow: 0 3px 8px var(--shadow);
+      animation: spin 2.5s linear infinite;
+      animation-play-state: paused;
+    }
+    .vinyl.playing { animation-play-state: running; }
+    .vinyl .dot { position: absolute; inset: 35px; border-radius: 50%; background: var(--vinyl-label); }
+    .vinyl .dot::after { content: ""; position: absolute; inset: 40%; background: var(--vinyl-hole); border-radius: 50%; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .play {
+      padding: 8px 16px; border: 0; border-radius: 20px;
+      background: var(--button-bg); color: var(--button-text);
+      font: 600 13px Georgia, serif; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <div class="envelope" id="envelope" title="Click to open / close">
+      <div class="back"></div>
+
+      <div class="note" id="note">
+
+        <!-- MIDDLE: title + cake (edit the title, or delete the .cake block to leave the card blank) -->
+        <div class="center">
+          <h2>HAPPY 20TH BIRTHDAY</h2>
+          <div class="cake">
+            <div class="candles">
+              <div class="candle"><i class="flame"></i></div>
+              <div class="candle"><i class="flame"></i></div>
+              <div class="candle"><i class="flame"></i></div>
+            </div>
+            <div class="tier-top"></div>
+            <div class="tier-bottom"></div>
+            <div class="plate"></div>
+            <p class="cake-text">from your sunshine <3</p>
+          </div>
+        </div>
+
+        <!-- RIGHT SECTION: .cover text = the label on the cover; .under = your content -->
+        <div class="fold right">
+          <div class="inner">
+            <div class="win">
+              <div class="under">
+                <p class="placeholder">
+                    <div class="vinyl" id="vinyl"><div class="dot"></div></div>
+                    <button class="play" id="play">▶ Play</button>
+                    <audio id="song" src="song.mp3" loop></audio>
+                </p>
+              </div>
+              <div class="cover">
+                Possibly a little song...
+                <br>
+                <br>
+                OPEN SECOND
+              </div>
+              <button class="close">close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- LEFT SECTION -->
+        <div class="fold left">
+          <div class="inner">
+            <div class="win">
+              <div class="under">
+                <p class="poem">
+                    yeah... so i didn't trust you, sorryy
+                    look in dms <3
+                </p>
+              </div>
+              <div class="cover">
+                Whatever you do, do NOT open on stream!
+                <br>
+                <br>
+                You will disappear if you do...
+              </div>
+              <button class="close">close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOP SECTION -->
+        <div class="fold top">
+          <div class="inner">
+            <div class="win">
+              <div class="under">
+                <p class="poem">
+                    You're so amazing, deserving of the absolute most...
+                    I'm so glad to have you! I have so much more to say to you, 
+                    but I don't think it'll fit you're just that kool :3
+                </p>
+              </div>
+              <div class="cover">
+                If you don't open me first, TRIXI will cry. 
+                <br>
+                <br>
+                OPEN FIRST
+              </div>
+              <button class="close">close</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="front"></div>
+      <div class="flap"></div>
+    </div>
+  </div>
+
+  <p class="hint" id="hint">click to close the envelope :D</p>
+
+  <!--
+    OPTIONAL SNIPPETS
+    Copy one into a section's <div class="under"> (replace the placeholder <p>).
+    The matching styles are already in section 5 of the CSS.
+
+    == PHOTO COLLAGE ==
+    First change that section's <div class="under"> to <div class="under collage">, then use:
+    <div class="photo" style="background-image:url(photo1.jpg)"></div>
+    <div class="photo" style="background-image:url(photo2.jpg)"></div>
+    <div class="photo" style="background-image:url(photo3.jpg)"></div>
+    <div class="photo" style="background-image:url(photo4.jpg)"></div>
+
+    == VINYL PLAYER ==
+    <div class="vinyl" id="vinyl"><div class="dot"></div></div>
+    <button class="play" id="play">▶ Play</button>
+    <audio id="song" src="song.mp3" loop></audio>
+  -->
+
+  <script>
+    const envelope = document.getElementById('envelope');
+    const note     = document.getElementById('note');
+    const hint     = document.getElementById('hint');
+    const wins     = document.querySelectorAll('.win');
+
+    /* optional: only exist if you pasted in the vinyl snippet */
+    const song    = document.getElementById('song');
+    const vinyl   = document.getElementById('vinyl');
+    const playBtn = document.getElementById('play');
+
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    let busy = false;
+
+    /* Shrink the opened note on small screens so it always fits (reads sizes from the CSS) */
+    function fit() {
+      const css = getComputedStyle(document.documentElement);
+      const cw = parseFloat(css.getPropertyValue('--cw'));
+      const th = parseFloat(css.getPropertyValue('--th'));
+      const ch = parseFloat(css.getPropertyValue('--ch'));
+      const k = Math.min(1, (innerWidth - 24) / (cw * 3), (innerHeight - 180) / (th + ch));
+      document.documentElement.style.setProperty('--fit', Math.max(k, .3));
+    }
+    fit();
+    addEventListener('resize', fit);
+
+    /* ---------- Envelope: click to open, click the sliver at the bottom to close ---------- */
+    async function openEnvelope() {
+      busy = true;
+      envelope.classList.add('open');          // flap opens, note slides out
+      await wait(1800);
+      envelope.classList.add('reveal');        // envelope drops, note moves to the middle
+      hint.classList.add('show');
+      await wait(1200);
+      envelope.classList.add('unfolded');      // sections fold out, cake pops up
+      await wait(1600);
+      busy = false;
+    }
+
+    async function closeEnvelope() {
+      busy = true;
+      closeAll();
+      stopSong();
+      hint.classList.remove('show');
+      envelope.classList.add('closing');
+      envelope.classList.remove('unfolded');   // sections fold back in
+      await wait(1500);
+      envelope.classList.remove('reveal');     // envelope rises
+      await wait(1000);
+      envelope.classList.remove('open');       // note slides in, flap closes
+      await wait(1200);
+      envelope.classList.remove('closing');
+      busy = false;
+    }
+
+    envelope.addEventListener('click', () => {
+      if (busy) return;
+      if (!envelope.classList.contains('open')) openEnvelope();
+      else if (envelope.classList.contains('unfolded')) closeEnvelope();
+    });
+
+    /* Clicks inside the note shouldn't reach the envelope */
+    note.addEventListener('click', e => e.stopPropagation());
+
+    /* ---------- Section covers: click a cover to slide it away, "Close" to slide it back ---------- */
+    function closeAll() { wins.forEach(w => w.classList.remove('open')); }
+
+    wins.forEach(win => {
+      win.querySelector('.cover').addEventListener('click', () => win.classList.add('open'));
+      win.querySelector('.close').addEventListener('click', () => {
+        win.classList.remove('open');
+        if (vinyl && win.contains(vinyl)) stopSong();
+      });
+    });
+
+    /* ---------- Optional audio + spinning vinyl ---------- */
+    function stopSong() {
+      if (!song) return;
+      song.pause();
+      if (vinyl) vinyl.classList.remove('playing');
+      if (playBtn) playBtn.textContent = '▶ Play';
+    }
+
+    if (playBtn && song) {
+      playBtn.addEventListener('click', () => {
+        if (song.paused) {
+          song.play().catch(() => {});
+          if (vinyl) vinyl.classList.add('playing');
+          playBtn.textContent = '❚❚ Pause';
+        } else {
+          stopSong();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
